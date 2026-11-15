@@ -64,6 +64,14 @@ export default function SolarSystem3D({ onFallback }) {
     apiRef.current?.reset();
   }, []);
 
+  const zoomIn = useCallback(() => {
+    apiRef.current?.zoomIn();
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    apiRef.current?.zoomOut();
+  }, []);
+
   return (
     <div className="relative w-full overflow-hidden bg-black">
       <div className="relative h-[76svh] min-h-[500px] w-full sm:h-[86svh]">
@@ -85,6 +93,8 @@ export default function SolarSystem3D({ onFallback }) {
           labels={labels}
           onToggleLabels={() => setLabels((value) => !value)}
           onBack={backToSystem}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
         />
 
         {!ready ? (

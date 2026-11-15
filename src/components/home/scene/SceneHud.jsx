@@ -1,4 +1,4 @@
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, Plus, Minus } from "lucide-react";
 import SceneToggle from "@/components/home/scene/SceneToggle";
 
 export default function SceneHud({
@@ -11,6 +11,8 @@ export default function SceneHud({
   labels,
   onToggleLabels,
   onBack,
+  onZoomIn,
+  onZoomOut,
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col gap-2.5 p-3 sm:p-4">
@@ -41,6 +43,22 @@ export default function SceneHud({
         </div>
 
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onZoomIn}
+            aria-label="Zoom in"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#020408]/70 text-white/70 backdrop-blur transition-colors hover:border-[#00F2FF]/50 hover:text-white"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onZoomOut}
+            aria-label="Zoom out"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#020408]/70 text-white/70 backdrop-blur transition-colors hover:border-[#00F2FF]/50 hover:text-white"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
           <SceneToggle active={orbits} onClick={onToggleOrbits} label="Orbits" />
           <SceneToggle active={labels} onClick={onToggleLabels} label="Labels" />
           <button
@@ -54,7 +72,7 @@ export default function SceneHud({
       </div>
 
       <p className="mono-label text-[0.46rem] leading-relaxed text-white/25">
-        Drag to orbit · right-drag to pan · click a world for a close-up
+        Drag to orbit · scroll to zoom · right-drag to pan · click a world for a close-up
       </p>
     </div>
   );

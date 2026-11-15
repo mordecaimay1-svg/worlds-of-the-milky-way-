@@ -197,7 +197,7 @@ function makeAtmosphere(radius, { color, power, intensity, scale }) {
 
 export function createSolarScene({ host, labelHost, quality = "high", onFocus, onClearFocus }) {
   const isMobile = quality === "low" || window.innerWidth < 768;
-  const textureSize = isMobile ? 512 : 1024;
+  const textureSize = isMobile ? 384 : 768;
   const textures = [];
   const track = (texture) => {
     textures.push(texture);
@@ -215,7 +215,7 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(1, 48, 32),
     new THREE.MeshBasicMaterial({
-      map: track(makeMilkyWayTexture(isMobile ? 1024 : 2048)),
+      map: track(makeMilkyWayTexture(isMobile ? 512 : 1024)),
       side: THREE.BackSide,
       depthTest: false,
       depthWrite: false,
@@ -230,7 +230,7 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
 
   // A real volume of star points far out in the system: orbiting or panning
   // shifts them slightly, which a flat panorama can never do.
-  const starCount = isMobile ? 2600 : 6000;
+  const starCount = isMobile ? 1800 : 3500;
   const starPositions = new Float32Array(starCount * 3);
   for (let i = 0; i < starCount; i += 1) {
     const u = Math.random() * 2 - 1;
@@ -299,13 +299,13 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
   controls.rotateSpeed = 0.45;
-  // No scroll-wheel zoom: scrolling the page should scroll the page, not
-  // zoom the scene. Close-ups come from clicking a planet, which snaps
-  // straight to it instead of flying the camera in.
-  controls.enableZoom = false;
+  // Gentle wheel zoom, only over the 3D canvas, clamped so you can adjust
+  // the close-up without flying off into space or into the planet.
+  controls.enableZoom = true;
+  controls.zoomSpeed = 0.3;
   controls.panSpeed = 0.7;
   controls.minDistance = 1.6;
-  controls.maxDistance = Infinity;
+  controls.maxDistance = 90;
   controls.maxPolarAngle = Math.PI * 0.995;
   controls.target.set(0, 0, 0);
 
@@ -626,19 +626,37 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   renderer.domElement.addEventListener("pointerup", onPointerUp);
 
   /* ------------------------------------------------------- planet focus */
-  // Smooth zoom flight, 750ms with a gentle ease. The orbit is frozen
-  // while the camera flies, so the target planet cannot move out from
-  // under the camera and the flight lands exactly, with no jump at the end.
+  // Live-follow zoom flight, 750ms with a gentle ease. The destination is
+  // recomputed from the planet's real position every frame, so the camera
+  // chases a moving target instead of flying to where it used to be and
+  // then jumping. No orbit freeze, no landing jump. While focused the
+  // orbit runs at quarter speed, so the camera is not chasing a fast target.
+  // Every planet is framed the same way: its disc fills about 45% of the
+  // viewport height, instead of a fixed radius multiplier.
   let flight = null;
   let follow = null;
   let previousFollowPos = null;
 
-  const flyTo = (position, target, duration, done) => {
+  const FOCUS_DIRECTION = new THREE.Vector3(0.52, 0.34, 1).normalize();
+  const focusDistance = (radius) => Math.max(radius * 3.9, 2.0);
+  const focusGoal = (slug) => {
+    const isNine = slug === "nine";
+    const holder = isNine ? nineHolder : bodies[slug]?.holder;
+    if (!holder) return null;
+    const radius = isNine ? NINE.radius : bodies[slug].cfg.radius;
+    const world = new THREE.Vector3();
+    holder.getWorldPosition(world);
+    return {
+      world,
+      destination: world.clone().add(FOCUS_DIRECTION.clone().multiplyScalar(focusDistance(radius))),
+    };
+  };
+
+  const flyTo = (slug, duration, done) => {
     flight = {
+      slug,
       p0: camera.position.clone(),
-      p1: position.clone(),
       t0: controls.target.clone(),
-      t1: target.clone(),
       start: performance.now(),
       duration,
       done,
@@ -647,17 +665,8 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   };
 
   function select(slug) {
-    const isNine = slug === "nine";
-    const holder = isNine ? nineHolder : bodies[slug]?.holder;
-    if (!holder) return;
-    const radius = isNine ? NINE.radius : bodies[slug].cfg.radius;
-    const world = new THREE.Vector3();
-    holder.getWorldPosition(world);
-    const distance = Math.max(radius * 4.8, 3.1);
-    const direction = new THREE.Vector3(0.52, 0.34, 1).normalize();
-    const destination = world.clone().add(direction.multiplyScalar(distance));
-
-    flyTo(destination, world, 750, () => {
+    if (!bodies[slug] && slug !== "nine") return;
+    flyTo(slug, 750, () => {
       follow = { slug };
       previousFollowPos = null;
       onFocus?.(slug);
@@ -668,8 +677,19 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
     follow = null;
     previousFollowPos = null;
     onClearFocus?.();
-    flyTo(overviewPosition(), new THREE.Vector3(0, 0, 0), 750);
+    flyTo(null, 750);
   }
+
+  const zoomBy = (factor) => {
+    const offset = camera.position.clone().sub(controls.target);
+    const length = Math.min(
+      Math.max(offset.length() * factor, controls.minDistance),
+      controls.maxDistance
+    );
+    offset.setLength(length);
+    camera.position.copy(controls.target).add(offset);
+    controls.update();
+  };
 
   /* ------------------------------------------------------------- animation */
   let paused = false;
@@ -709,8 +729,10 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   function animate() {
     frameId = requestAnimationFrame(animate);
     const delta = Math.min(clock.getDelta(), 0.05);
-    // Frozen while the camera is flying, so the flight lands exactly.
-    const motion = flight || paused ? 0 : delta * speedMultiplier;
+    // Quarter speed while focused or flying to a planet, so the camera
+    // is not chasing a fast target.
+    const focused = follow || flight?.slug;
+    const motion = paused ? 0 : delta * speedMultiplier * (focused ? 0.25 : 1);
     elapsed += motion;
 
     BODIES.forEach((cfg) => {
@@ -762,8 +784,15 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
       const progress = Math.min(1, (performance.now() - flight.start) / flight.duration);
       // Smootherstep: gentle start and end, no abrupt stop.
       const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
-      camera.position.lerpVectors(flight.p0, flight.p1, eased);
-      controls.target.lerpVectors(flight.t0, flight.t1, eased);
+      // Destination follows the planet live, so the flight lands on
+      // where the planet actually is, not where it was when clicked.
+      const goal = flight.slug
+        ? focusGoal(flight.slug)
+        : { world: new THREE.Vector3(0, 0, 0), destination: overviewPosition() };
+      if (goal) {
+        camera.position.lerpVectors(flight.p0, goal.destination, eased);
+        controls.target.lerpVectors(flight.t0, goal.world, eased);
+      }
       if (progress >= 1) {
         controls.enabled = true;
         const done = flight.done;
@@ -797,6 +826,8 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   return {
     focus: select,
     reset,
+    zoomIn: () => zoomBy(0.75),
+    zoomOut: () => zoomBy(1.33),
     setPaused: (value) => {
       paused = value;
     },
