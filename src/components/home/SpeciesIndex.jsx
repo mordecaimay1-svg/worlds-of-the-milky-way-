@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { PLANETS } from "@/data/solar-system";
+import { SPECIES_IMAGES } from "@/data/species-images";
+import { Image } from "@/components/ui/image";
 import { ArrowRight } from "lucide-react";
 
 export default function SpeciesIndex() {
@@ -29,6 +31,14 @@ export default function SpeciesIndex() {
             <span className="mono-label w-6 shrink-0 text-white/25">
               {String(index + 1).padStart(2, "0")}
             </span>
+            {SPECIES_IMAGES[planet.slug] ? (
+              <Image
+                src={SPECIES_IMAGES[planet.slug]}
+                alt={`${planet.species.name}, the hypothetical inhabitant of ${planet.name}`}
+                className="h-14 w-14 shrink-0 rounded-xl"
+                fittingType="fill"
+              />
+            ) : null}
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-baseline gap-x-3">
                 <span className="font-heading text-base font-medium text-white transition-colors group-hover:text-[#00F2FF]">

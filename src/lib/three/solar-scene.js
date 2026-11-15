@@ -263,12 +263,14 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   const camera = new THREE.PerspectiveCamera(60, width / height, 0.2, 120000);
 
   const renderer = new THREE.WebGLRenderer({ antialias: !isMobile, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(width, height);
   renderer.setClearColor(0x000000, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = true;
+  // Shadows are the biggest frame cost: soft shadows only on desktop,
+  // and a 512 map instead of 1024.
+  renderer.shadowMap.enabled = !isMobile;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.style.display = "block";
   host.appendChild(renderer.domElement);
@@ -310,7 +312,7 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   const sunLight = new THREE.PointLight(0xfff3d6, 3.4, 0, 0);
   // Only the ring plane casts, so the shadow cube stays cheap.
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(isMobile ? 512 : 1024, isMobile ? 512 : 1024);
+  sunLight.shadow.mapSize.set(512, 512);
   sunLight.shadow.camera.near = 1;
   sunLight.shadow.camera.far = 72;
   sunLight.shadow.bias = -0.0015;
@@ -624,10 +626,25 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   renderer.domElement.addEventListener("pointerup", onPointerUp);
 
   /* ------------------------------------------------------- planet focus */
-  // No camera flights: selecting a planet snaps the camera straight to it,
-  // and going back snaps straight to the overview. No zoom animation.
+  // Smooth zoom flight, 750ms with a gentle ease. The orbit is frozen
+  // while the camera flies, so the target planet cannot move out from
+  // under the camera and the flight lands exactly, with no jump at the end.
+  let flight = null;
   let follow = null;
   let previousFollowPos = null;
+
+  const flyTo = (position, target, duration, done) => {
+    flight = {
+      p0: camera.position.clone(),
+      p1: position.clone(),
+      t0: controls.target.clone(),
+      t1: target.clone(),
+      start: performance.now(),
+      duration,
+      done,
+    };
+    controls.enabled = false;
+  };
 
   function select(slug) {
     const isNine = slug === "nine";
@@ -638,21 +655,20 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
     holder.getWorldPosition(world);
     const distance = Math.max(radius * 4.8, 3.1);
     const direction = new THREE.Vector3(0.52, 0.34, 1).normalize();
-    camera.position.copy(world.clone().add(direction.multiplyScalar(distance)));
-    controls.target.copy(world);
-    controls.update();
-    follow = { slug };
-    previousFollowPos = null;
-    onFocus?.(slug);
+    const destination = world.clone().add(direction.multiplyScalar(distance));
+
+    flyTo(destination, world, 750, () => {
+      follow = { slug };
+      previousFollowPos = null;
+      onFocus?.(slug);
+    });
   }
 
   function reset() {
     follow = null;
     previousFollowPos = null;
     onClearFocus?.();
-    camera.position.copy(overviewPosition());
-    controls.target.set(0, 0, 0);
-    controls.update();
+    flyTo(overviewPosition(), new THREE.Vector3(0, 0, 0), 750);
   }
 
   /* ------------------------------------------------------------- animation */
@@ -693,7 +709,8 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   function animate() {
     frameId = requestAnimationFrame(animate);
     const delta = Math.min(clock.getDelta(), 0.05);
-    const motion = paused ? 0 : delta * speedMultiplier;
+    // Frozen while the camera is flying, so the flight lands exactly.
+    const motion = flight || paused ? 0 : delta * speedMultiplier;
     elapsed += motion;
 
     BODIES.forEach((cfg) => {
@@ -741,7 +758,21 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
       }
     }
 
-    controls.update();
+    if (flight) {
+      const progress = Math.min(1, (performance.now() - flight.start) / flight.duration);
+      // Smootherstep: gentle start and end, no abrupt stop.
+      const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
+      camera.position.lerpVectors(flight.p0, flight.p1, eased);
+      controls.target.lerpVectors(flight.t0, flight.t1, eased);
+      if (progress >= 1) {
+        controls.enabled = true;
+        const done = flight.done;
+        flight = null;
+        done?.();
+      }
+    } else {
+      controls.update();
+    }
 
     sky.position.copy(camera.position);
     renderer.render(scene, camera);

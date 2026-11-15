@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { X, ArrowUpRight } from "lucide-react";
 import { PLANETS, getSource } from "@/data/solar-system";
+import { SPECIES_IMAGES } from "@/data/species-images";
+import { Image } from "@/components/ui/image";
 
 const NASA_SOURCE = getSource("nasa-factsheet-metric");
 
@@ -48,6 +50,19 @@ export default function PlanetFocusCard({ slug, onClose }) {
           </>
         ) : (
           <>
+            {SPECIES_IMAGES[planet.slug] ? (
+              <div className="relative mt-3 overflow-hidden rounded-xl">
+                <Image
+                  src={SPECIES_IMAGES[planet.slug]}
+                  alt={`${planet.species.name}, the hypothetical inhabitant of ${planet.name}`}
+                  className="h-28 w-full"
+                  fittingType="fill"
+                />
+                <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6 font-heading text-[0.8rem] font-medium text-white">
+                  {planet.species.name}
+                </p>
+              </div>
+            ) : null}
             <p className="mt-2.5 text-[0.8rem] leading-snug text-white/60">{planet.tagline}</p>
             <p className="mono-label mt-3 text-[0.46rem] text-[#00F2FF]/70">
               VERIFIED PLANETARY DATA
