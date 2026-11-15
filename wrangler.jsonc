@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "worlds-of-the-milky-way",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/server.js",
+  "observability": { "enabled": true },
+  // Workers AI: species text (Llama 3.3 70B) and images (FLUX.1 schnell). No API key.
+  "ai": { "binding": "AI" },
+  // Planets people design, their images and the rate-limit counters. Tables are created on first use.
+  // No database_id: the first `wrangler deploy` creates the database and links it automatically.
+  "d1_databases": [{ "binding": "DB", "database_name": "worlds-of-the-milky-way" }],
+  "vars": {
+    // Spend guards: generations per visitor per hour, and for the whole app per day (UTC).
+    "HOURLY_LIMIT_PER_VISITOR": "6",
+    "DAILY_GENERATION_LIMIT": "1500"
+  }
+}
