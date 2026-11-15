@@ -626,11 +626,12 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   renderer.domElement.addEventListener("pointerup", onPointerUp);
 
   /* ------------------------------------------------------- planet focus */
-  // Live-follow zoom flight, 750ms with a gentle ease. The destination is
-  // recomputed from the planet's real position every frame, so the camera
-  // chases a moving target instead of flying to where it used to be and
-  // then jumping. No orbit freeze, no landing jump. While focused the
-  // orbit runs at quarter speed, so the camera is not chasing a fast target.
+  // Spring zoom, no timed flight at all. A timed lerp flies to where the
+  // planet was when you clicked, so from the overview, where the planet
+  // is far away and moving fast, the camera arrives at empty space and
+  // then has to come back. A spring chases the planet's live position
+  // every frame and can never overshoot it, so it lands centered and
+  // stays there. While focused the orbit runs at quarter speed.
   // Every planet is framed the same way: its disc fills about 45% of the
   // viewport height, instead of a fixed radius multiplier.
   let flight = null;
@@ -656,21 +657,14 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
     };
   };
 
-  const flyTo = (slug, duration, done) => {
-    flight = {
-      slug,
-      p0: camera.position.clone(),
-      t0: controls.target.clone(),
-      start: performance.now(),
-      duration,
-      done,
-    };
+  const flyTo = (slug, done) => {
+    flight = { slug, done };
     controls.enabled = false;
   };
 
   function select(slug) {
     if (!bodies[slug] && slug !== "nine") return;
-    flyTo(slug, 750, () => {
+    flyTo(slug, () => {
       follow = { slug };
       previousFollowPos = null;
       onFocus?.(slug);
@@ -681,7 +675,7 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
     follow = null;
     previousFollowPos = null;
     onClearFocus?.();
-    flyTo(null, 750);
+    flyTo(null);
   }
 
   const zoomBy = (factor) => {
@@ -785,27 +779,31 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
     }
 
     if (flight) {
-      const progress = Math.min(1, (performance.now() - flight.start) / flight.duration);
-      // Smootherstep: gentle start and end, no abrupt stop.
-      const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
-      // Destination follows the planet live, so the flight lands on
-      // where the planet actually is, not where it was when clicked.
+      // Spring toward the planet's live position. The alpha is frame-rate
+      // independent, the motion can never overshoot, and it settles
+      // exactly on the planet instead of arriving at empty space.
       const goal = flight.slug
         ? focusGoal(flight.slug)
         : { world: new THREE.Vector3(0, 0, 0), destination: overviewPosition() };
       if (goal) {
-        camera.position.lerpVectors(flight.p0, goal.destination, eased);
-        controls.target.lerpVectors(flight.t0, goal.world, eased);
-        // controls.update() is skipped during a flight, so without this
-        // the camera keeps pointing at the old target while it moves,
-        // and snaps to the planet only when the flight ends.
+        const alpha = 1 - Math.exp(-delta * 5);
+        camera.position.lerp(goal.destination, alpha);
+        controls.target.lerp(goal.world, alpha);
         camera.lookAt(controls.target);
-      }
-      if (progress >= 1) {
+        if (
+          camera.position.distanceTo(goal.destination) < 0.05 &&
+          controls.target.distanceTo(goal.world) < 0.05
+        ) {
+          camera.position.copy(goal.destination);
+          controls.target.copy(goal.world);
+          controls.enabled = true;
+          const done = flight.done;
+          flight = null;
+          done?.();
+        }
+      } else {
         controls.enabled = true;
-        const done = flight.done;
         flight = null;
-        done?.();
       }
     } else {
       controls.update();
