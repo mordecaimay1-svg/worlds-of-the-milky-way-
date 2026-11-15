@@ -295,9 +295,12 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.075;
-  controls.rotateSpeed = 0.55;
-  controls.zoomSpeed = 0.8;
+  controls.dampingFactor = 0.12;
+  controls.rotateSpeed = 0.45;
+  // No scroll-wheel zoom: scrolling the page should scroll the page, not
+  // zoom the scene. Close-ups come from clicking a planet, which snaps
+  // straight to it instead of flying the camera in.
+  controls.enableZoom = false;
   controls.panSpeed = 0.7;
   controls.minDistance = 1.6;
   controls.maxDistance = Infinity;
@@ -620,23 +623,11 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
   renderer.domElement.addEventListener("pointerup", onPointerUp);
 
-  /* ---------------------------------------------------------------- flight */
-  let flight = null;
+  /* ------------------------------------------------------- planet focus */
+  // No camera flights: selecting a planet snaps the camera straight to it,
+  // and going back snaps straight to the overview. No zoom animation.
   let follow = null;
   let previousFollowPos = null;
-
-  const flyTo = (position, target, duration, done) => {
-    flight = {
-      p0: camera.position.clone(),
-      p1: position.clone(),
-      t0: controls.target.clone(),
-      t1: target.clone(),
-      start: performance.now(),
-      duration,
-      done,
-    };
-    controls.enabled = false;
-  };
 
   function select(slug) {
     const isNine = slug === "nine";
@@ -647,20 +638,21 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
     holder.getWorldPosition(world);
     const distance = Math.max(radius * 4.8, 3.1);
     const direction = new THREE.Vector3(0.52, 0.34, 1).normalize();
-    const destination = world.clone().add(direction.multiplyScalar(distance));
-
-    flyTo(destination, world, 1100, () => {
-      follow = { slug };
-      previousFollowPos = null;
-      onFocus?.(slug);
-    });
+    camera.position.copy(world.clone().add(direction.multiplyScalar(distance)));
+    controls.target.copy(world);
+    controls.update();
+    follow = { slug };
+    previousFollowPos = null;
+    onFocus?.(slug);
   }
 
   function reset() {
     follow = null;
     previousFollowPos = null;
     onClearFocus?.();
-    flyTo(overviewPosition(), new THREE.Vector3(0, 0, 0), 1100);
+    camera.position.copy(overviewPosition());
+    controls.target.set(0, 0, 0);
+    controls.update();
   }
 
   /* ------------------------------------------------------------- animation */
@@ -749,21 +741,7 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
       }
     }
 
-    if (flight) {
-      const progress = Math.min(1, (performance.now() - flight.start) / flight.duration);
-      const eased =
-        progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-      camera.position.lerpVectors(flight.p0, flight.p1, eased);
-      controls.target.lerpVectors(flight.t0, flight.t1, eased);
-      if (progress >= 1) {
-        controls.enabled = true;
-        const done = flight.done;
-        flight = null;
-        done?.();
-      }
-    } else {
-      controls.update();
-    }
+    controls.update();
 
     sky.position.copy(camera.position);
     renderer.render(scene, camera);

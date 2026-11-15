@@ -11,8 +11,8 @@ export default function PlanetFocusCard({ slug, onClose }) {
   if (!isNine && !planet) return null;
 
   return (
-    <div className="absolute right-3 top-3 z-20 w-[270px] max-w-[calc(100%-1.5rem)]">
-      <div className="glass-strong rounded-2xl p-4 shadow-[0_30px_70px_-30px_rgba(0,0,0,0.95)]">
+    <div className="absolute right-3 top-3 z-20 w-[300px] max-w-[calc(100%-1.5rem)]">
+      <div className="glass-strong max-h-[calc(76svh-2rem)] overflow-y-auto rounded-2xl p-4 shadow-[0_30px_70px_-30px_rgba(0,0,0,0.95)]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className={`mono-label text-[0.46rem] ${isNine ? "text-[#D9A8FF]/80" : "text-[#00F2FF]/70"}`}>
@@ -86,6 +86,26 @@ export default function PlanetFocusCard({ slug, onClose }) {
                 ? "Known species · Homo sapiens"
                 : `Speculative biology · ${planet.species.name}`}
             </p>
+            <p className="mt-2 text-[0.78rem] leading-snug text-white/65">{planet.teaser}</p>
+            {planet.species?.adaptations?.length ? (
+              <>
+                <p className="mono-label mt-3 text-[0.46rem] text-[#D9A8FF]/80">
+                  Why it survives here
+                </p>
+                <ul className="mt-2 space-y-2.5 border-t border-white/10 pt-2.5">
+                  {planet.species.adaptations.slice(0, 3).map((item, index) => (
+                    <li key={index}>
+                      <p className="font-mono text-[0.6rem] uppercase tracking-[0.08em] text-[#8A2BE2]">
+                        {item.condition}
+                      </p>
+                      <p className="mt-0.5 text-[0.74rem] leading-snug text-white/65">
+                        {item.adaptation}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
             <Link
               to="/planets/$planetSlug"
               params={{ planetSlug: planet.slug }}

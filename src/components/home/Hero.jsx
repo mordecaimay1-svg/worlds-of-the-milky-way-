@@ -21,15 +21,15 @@ export default function Hero() {
         <h1 className="mt-7 font-heading text-[2.6rem] font-medium leading-[1.03] tracking-[-0.03em] text-white sm:text-6xl lg:text-[4.6rem]">
           Eight worlds.
           <br />
-          Eight species.
+          Eight imagined species.
           <br />
           <span className="text-white/45">One you design.</span>
         </h1>
 
         <p className="mt-7 max-w-2xl text-[1.05rem] leading-relaxed text-white/60 sm:text-lg">
-          Every planet orbiting our Sun carries its own native life, shaped by the exact conditions
-          that would kill us. Survey the archive world by world — then invent the ninth planet and
-          the organism that survives it.
+          Every planet orbiting our Sun gets a hypothetical inhabitant, imagined from the exact
+          conditions that would kill us. Survey the archive world by world — then invent the ninth
+          planet and the organism that survives it.
         </p>
 
         <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -51,7 +51,7 @@ export default function Hero() {
         <dl className="mt-14 grid max-w-2xl grid-cols-2 gap-x-6 gap-y-6 border-t border-white/8 pt-8 sm:grid-cols-4">
           {[
             { value: "8", label: "Planets surveyed" },
-            { value: "8", label: "Species catalogued" },
+            { value: "8", label: "Hypothetical species" },
             { value: "26k", label: "Light years to core" },
             { value: "1", label: "Awaiting definition" },
           ].map((stat) => (

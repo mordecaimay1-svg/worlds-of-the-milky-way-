@@ -54,7 +54,7 @@ export default function SceneHud({
       </div>
 
       <p className="mono-label text-[0.46rem] leading-relaxed text-white/25">
-        Drag to orbit · scroll to zoom · right-drag to pan · click a world
+        Drag to orbit · right-drag to pan · click a world for a close-up
       </p>
     </div>
   );

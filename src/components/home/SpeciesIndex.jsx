@@ -37,6 +37,11 @@ export default function SpeciesIndex() {
                 <span className="mono-label text-[0.52rem] text-white/30">{planet.name}</span>
               </span>
               <span className="mt-1 block truncate text-[0.85rem] text-white/45">{planet.teaser}</span>
+              {planet.species?.adaptations?.[0] ? (
+                <span className="mt-1 block truncate text-[0.8rem] text-[#D9A8FF]/70">
+                  Survives by: {planet.species.adaptations[0].adaptation}
+                </span>
+              ) : null}
             </span>
             <ArrowRight className="h-4 w-4 shrink-0 text-white/20 transition-all group-hover:translate-x-1 group-hover:text-[#00F2FF]" />
           </Link>
