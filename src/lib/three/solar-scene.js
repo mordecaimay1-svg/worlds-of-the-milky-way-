@@ -637,7 +637,6 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
   let follow = null;
   let previousFollowPos = null;
 
-  const FOCUS_DIRECTION = new THREE.Vector3(0.52, 0.34, 1).normalize();
   const focusDistance = (radius) => Math.max(radius * 3.9, 2.0);
   const focusGoal = (slug) => {
     const isNine = slug === "nine";
@@ -646,9 +645,14 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
     const radius = isNine ? NINE.radius : bodies[slug].cfg.radius;
     const world = new THREE.Vector3();
     holder.getWorldPosition(world);
+    // Zoom straight in from where the user is already looking, instead of
+    // swinging the camera around to one fixed angle every time.
+    const direction = camera.position.clone().sub(world);
+    if (direction.lengthSq() < 0.001) direction.set(0.52, 0.34, 1);
+    direction.normalize();
     return {
       world,
-      destination: world.clone().add(FOCUS_DIRECTION.clone().multiplyScalar(focusDistance(radius))),
+      destination: world.clone().add(direction.multiplyScalar(focusDistance(radius))),
     };
   };
 
@@ -792,6 +796,10 @@ export function createSolarScene({ host, labelHost, quality = "high", onFocus, o
       if (goal) {
         camera.position.lerpVectors(flight.p0, goal.destination, eased);
         controls.target.lerpVectors(flight.t0, goal.world, eased);
+        // controls.update() is skipped during a flight, so without this
+        // the camera keeps pointing at the old target while it moves,
+        // and snaps to the planet only when the flight ends.
+        camera.lookAt(controls.target);
       }
       if (progress >= 1) {
         controls.enabled = true;
